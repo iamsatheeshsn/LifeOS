@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { formatSignUpError, isAutoConfirmSignupEnabled } from '@/lib/auth/signup';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type {
@@ -16,19 +17,72 @@ async function getUserId() {
 }
 
 // Auth
-export async function signUp(formData: FormData) {
-  const supabase = await createClient();
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-  const fullName = formData.get('fullName') as string;
+async function signUpWithAutoConfirm(email: string, password: string, fullName: string) {
+  const { createServiceClient } = await import('@/lib/supabase/server');
+  const service = await createServiceClient();
 
-  const { error } = await supabase.auth.signUp({
+  const { data: existing } = await service.auth.admin.listUsers();
+  if (existing?.users?.some((u) => u.email?.toLowerCase() === email.toLowerCase())) {
+    return { error: 'An account with this email already exists. Try signing in.' };
+  }
+
+  const { data, error } = await service.auth.admin.createUser({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    email_confirm: true,
+    user_metadata: { full_name: fullName, role: 'member' },
   });
 
-  if (error) return { error: error.message };
+  if (error || !data.user) {
+    return { error: formatSignUpError(error?.message || 'Failed to create account') };
+  }
+
+  await service
+    .from('profiles')
+    .update({ full_name: fullName, role: 'member' })
+    .eq('id', data.user.id);
+
+  const supabase = await createClient();
+  const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+  if (signInError) {
+    return { error: formatSignUpError(signInError.message) };
+  }
+
+  redirect('/today');
+}
+
+export async function signUp(formData: FormData) {
+  const email = (formData.get('email') as string)?.trim();
+  const password = formData.get('password') as string;
+  const fullName = (formData.get('fullName') as string)?.trim();
+
+  if (!email || !password || !fullName) {
+    return { error: 'Full name, email, and password are required' };
+  }
+  if (password.length < 6) {
+    return { error: 'Password must be at least 6 characters' };
+  }
+
+  if (isAutoConfirmSignupEnabled()) {
+    return signUpWithAutoConfirm(email, password, fullName);
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: fullName, role: 'member' } },
+  });
+
+  if (error) return { error: formatSignUpError(error.message) };
+
+  if (!data.session) {
+    return {
+      success: true,
+      message: 'Account created! Check your email to confirm your address, then sign in.',
+    };
+  }
+
   redirect('/today');
 }
 

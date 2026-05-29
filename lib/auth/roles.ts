@@ -42,6 +42,15 @@ export function isAdmin(role: UserRole | null | undefined): boolean {
   return role === 'admin';
 }
 
+export const USER_ROLES: UserRole[] = ['admin', 'member', 'family', 'partner'];
+
+export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+  admin: 'Full access including Admin panel',
+  member: 'All life modules (tasks, finance, health, etc.)',
+  family: 'Reminders, health, journal, and memory',
+  partner: 'Planner, reminders, journal, health, and memory',
+};
+
 export const ROUTE_LABELS: Record<AppRoute, string> = {
   '/today': 'Today',
   '/planner': 'Planner',

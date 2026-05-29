@@ -1,17 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { updateUserRole } from '@/lib/admin/actions';
+import { Input } from '@/components/ui/input';
+import { createAdminUser, updateUserRole } from '@/lib/admin/actions';
+import type { AdminUser } from '@/lib/admin/actions';
 import type { UserRole } from '@/types/database';
-import { Shield, Users, Database, Brain, RefreshCw } from 'lucide-react';
+import { ROLE_DESCRIPTIONS, USER_ROLES } from '@/lib/auth/roles';
+import { Shield, Users, Database, Brain, RefreshCw, UserPlus } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useRouter } from 'next/navigation';
 
 interface AdminClientProps {
   stats: {
-    users: Array<{ id: string; full_name: string | null; role: UserRole; created_at: string }>;
+    users: AdminUser[];
     totalTasks: number;
     totalMemories: number;
     memoriesWithEmbeddings: number;
@@ -19,11 +22,12 @@ interface AdminClientProps {
   };
 }
 
-const ROLES: UserRole[] = ['admin', 'member', 'family', 'partner'];
-
 export function AdminClient({ stats }: AdminClientProps) {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<string | null>(null);
+  const [createError, setCreateError] = useState('');
+  const [createSuccess, setCreateSuccess] = useState('');
+  const [creating, setCreating] = useState(false);
   const router = useRouter();
 
   async function handleBackfill() {
@@ -50,8 +54,35 @@ export function AdminClient({ stats }: AdminClientProps) {
   }
 
   async function handleRoleChange(userId: string, role: UserRole) {
-    await updateUserRole(userId, role);
+    const result = await updateUserRole(userId, role);
+    if (result?.error) {
+      setCreateError(result.error);
+      return;
+    }
+    setCreateError('');
     router.refresh();
+  }
+
+  async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreating(true);
+    setCreateError('');
+    setCreateSuccess('');
+
+    try {
+      const result = await createAdminUser(new FormData(event.currentTarget));
+      if (result?.error) {
+        setCreateError(result.error);
+        return;
+      }
+      if (result?.message) {
+        setCreateSuccess(result.message);
+        event.currentTarget.reset();
+        router.refresh();
+      }
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
@@ -60,7 +91,7 @@ export function AdminClient({ stats }: AdminClientProps) {
         <Shield className="h-6 w-6 text-red-500" />
         <div>
           <h2 className="text-2xl font-bold">Admin Panel</h2>
-          <p className="text-sm text-muted-foreground">Manage users, roles, and AI memory embeddings</p>
+          <p className="text-sm text-muted-foreground">Create users by role and manage AI memory embeddings</p>
         </div>
       </div>
 
@@ -92,6 +123,47 @@ export function AdminClient({ stats }: AdminClientProps) {
 
       <Card>
         <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5" />
+            Create User
+          </CardTitle>
+        </CardHeader>
+        {createError && (
+          <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-500">
+            {createError}
+          </div>
+        )}
+        {createSuccess && (
+          <div className="mb-4 rounded-xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
+            {createSuccess}
+          </div>
+        )}
+        <form onSubmit={handleCreateUser} className="grid gap-4 sm:grid-cols-2">
+          <Input label="Full Name" name="fullName" required placeholder="Jane Doe" />
+          <Input label="Email" name="email" type="email" required placeholder="jane@example.com" />
+          <Input label="Password" name="password" type="password" required minLength={6} placeholder="••••••••" />
+          <div className="space-y-1.5">
+            <label htmlFor="role" className="block text-sm font-medium text-foreground/80">
+              Role
+            </label>
+            <select id="role" name="role" required defaultValue="member" className="input-field w-full text-sm">
+              {USER_ROLES.map((role) => (
+                <option key={role} value={role}>
+                  {role} — {ROLE_DESCRIPTIONS[role]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <Button type="submit" disabled={creating} size="sm">
+              {creating ? 'Creating...' : 'Create User'}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>AI Memory Embeddings</CardTitle>
         </CardHeader>
         <p className="mb-4 text-sm text-muted-foreground">
@@ -112,6 +184,9 @@ export function AdminClient({ stats }: AdminClientProps) {
           <CardTitle>Users & Roles</CardTitle>
         </CardHeader>
         <div className="space-y-3">
+          {stats.users.length === 0 && (
+            <p className="text-sm text-muted-foreground">No users yet. Create one above.</p>
+          )}
           {stats.users.map((user) => (
             <div
               key={user.id}
@@ -120,7 +195,7 @@ export function AdminClient({ stats }: AdminClientProps) {
               <div>
                 <p className="text-sm font-medium">{user.full_name || 'Unnamed'}</p>
                 <p className="text-xs text-muted-foreground">
-                  Joined {format(parseISO(user.created_at), 'MMM d, yyyy')}
+                  {user.email || 'No email'} · Joined {format(parseISO(user.created_at), 'MMM d, yyyy')}
                 </p>
               </div>
               <select
@@ -128,7 +203,7 @@ export function AdminClient({ stats }: AdminClientProps) {
                 onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
                 className="input-field w-auto text-sm"
               >
-                {ROLES.map((r) => (
+                {USER_ROLES.map((r) => (
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>

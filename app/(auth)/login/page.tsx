@@ -5,19 +5,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 
 export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setLoading(true);
     setError('');
-    const result = await signIn(formData);
-    if (result?.error) {
-      setError(result.error);
+
+    try {
+      const result = await signIn(new FormData(event.currentTarget));
+      if (result?.error) setError(result.error);
+    } finally {
       setLoading(false);
     }
   }
@@ -44,7 +47,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form action={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <Input label="Email" name="email" type="email" required placeholder="you@example.com" />
             <Input label="Password" name="password" type="password" required placeholder="••••••••" />
             <Button type="submit" className="w-full" disabled={loading}>

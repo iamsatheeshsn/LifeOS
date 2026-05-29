@@ -5,19 +5,33 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 
 export default function SignUpPage() {
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setLoading(true);
     setError('');
-    const result = await signUp(formData);
-    if (result?.error) {
-      setError(result.error);
+    setSuccess('');
+
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      const result = await signUp(formData);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
+      if (result?.message) {
+        setSuccess(result.message);
+        event.currentTarget.reset();
+      }
+    } finally {
       setLoading(false);
     }
   }
@@ -43,10 +57,15 @@ export default function SignUpPage() {
               {error}
             </div>
           )}
+          {success && (
+            <div className="mb-4 rounded-xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
+              {success}
+            </div>
+          )}
 
-          <form action={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <Input label="Full Name" name="fullName" required placeholder="Jane Doe" />
-            <Input label="Email" name="email" type="email" required placeholder="you@example.com" />
+            <Input label="Email" name="email" type="email" required placeholder="you@gmail.com" />
             <Input label="Password" name="password" type="password" required minLength={6} placeholder="••••••••" />
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Creating account...' : 'Create Account'}
