@@ -1,6 +1,6 @@
 'use client';
 
-import { signUp, signInWithGoogle } from '@/lib/actions';
+import { signUp } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sparkles } from 'lucide-react';
@@ -16,15 +16,6 @@ export default function SignUpPage() {
     setLoading(true);
     setError('');
     const result = await signUp(formData);
-    if (result?.error) {
-      setError(result.error);
-      setLoading(false);
-    }
-  }
-
-  async function handleGoogle() {
-    setLoading(true);
-    const result = await signInWithGoogle();
     if (result?.error) {
       setError(result.error);
       setLoading(false);
@@ -61,16 +52,6 @@ export default function SignUpPage() {
               {loading ? 'Creating account...' : 'Create Account'}
             </Button>
           </form>
-
-          <div className="my-4 flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
-          <Button variant="secondary" className="w-full" onClick={handleGoogle} disabled={loading}>
-            Continue with Google
-          </Button>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{' '}

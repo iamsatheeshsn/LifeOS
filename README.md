@@ -47,8 +47,7 @@ npm install
    ```
    supabase/migrations/001_initial_schema.sql
    ```
-3. Enable **Google OAuth** (optional) under Authentication → Providers
-4. Copy your project URL and keys from Settings → API
+3. Copy your project URL and keys from Settings → API
 
 ### 3. Configure environment
 
